@@ -378,16 +378,7 @@ func NewClientTraceWithContext(ctx context.Context, trace *ClientTrace,
 			)
 			trace.TLSHandshakeError = err
 
-			if state.PeerCertificates != nil {
-				cert := state.PeerCertificates[0]
-				trace.TLSHandshakeIssuer = cert.Issuer.String()
-				trace.TLSHandshakeSubject = cert.Subject.String()
-				trace.TLSHandshakeNotBefore = cert.NotBefore
-				trace.TLSHandshakeNotAfter = cert.NotAfter
-				h := sha256.New()
-				h.Write(cert.Raw)
-				trace.TLSHandshakeDigest = hex.EncodeToString(h.Sum(nil))
-			}
+			traceTLSState(trace, state)
 		},
 		WroteHeaderField: func(key string, value []string) {
 			if trace.WroteHeaders == nil {
@@ -397,4 +388,21 @@ func NewClientTraceWithContext(ctx context.Context, trace *ClientTrace,
 		},
 	})
 	return ctx
+}
+
+// traceTLSState records the leaf certificate of a finished handshake. A state
+// without a peer certificate is legal (it happens on a resumed or failed
+// handshake), so the slice length, not just nil-ness, decides.
+func traceTLSState(trace *ClientTrace, state tls.ConnectionState) {
+	if len(state.PeerCertificates) == 0 {
+		return
+	}
+	cert := state.PeerCertificates[0]
+	trace.TLSHandshakeIssuer = cert.Issuer.String()
+	trace.TLSHandshakeSubject = cert.Subject.String()
+	trace.TLSHandshakeNotBefore = cert.NotBefore
+	trace.TLSHandshakeNotAfter = cert.NotAfter
+	h := sha256.New()
+	h.Write(cert.Raw)
+	trace.TLSHandshakeDigest = hex.EncodeToString(h.Sum(nil))
 }
