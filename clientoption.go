@@ -373,9 +373,14 @@ func NewClientTraceWithContext(ctx context.Context, trace *ClientTrace,
 			trace.Lock()
 			defer trace.Unlock()
 			trace.TLSHandshakeDone = time.Now()
-			trace.TLSHandshakeDuration = trace.TLSHandshakeDone.Sub(
-				trace.TLSHandshakeStart,
-			)
+			// A dial that failed before the TLS layer started never fired
+			// TLSHandshakeStart, so subtracting it would report a duration measured
+			// from the zero time. Leave the duration empty in that case.
+			if !trace.TLSHandshakeStart.IsZero() {
+				trace.TLSHandshakeDuration = trace.TLSHandshakeDone.Sub(
+					trace.TLSHandshakeStart,
+				)
+			}
 			trace.TLSHandshakeError = err
 
 			traceTLSState(trace, state)
